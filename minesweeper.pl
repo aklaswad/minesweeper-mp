@@ -77,6 +77,10 @@ websocket '/' => sub {
             push @{$game->{log}}, $msg;
             broadcast( $cmd => $data );
         }
+        elsif ( $cmd eq 'bulkopen' ) {
+            push @{$game->{log}}, $msg;
+            broadcast( $cmd => $data );
+        }
         elsif ( $cmd eq 'flag' ) {
             push @{$game->{log}}, $msg;
             broadcast( $cmd => $data );
