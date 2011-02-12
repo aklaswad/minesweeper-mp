@@ -1,0 +1,528 @@
+% my $url = $self->req->url->to_abs->scheme( $self->req->is_secure ? 'wss' : 'ws' )->path( '/' );
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Mine Sweeper</title>
+
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.min.js"></script>
+<script type="text/javascript">
+
+var game;
+var ws;
+
+$( function () {
+
+function initWebSocket () {
+}
+
+function Cell (x, y, field) {
+    this.x = x;
+    this.y = y;
+    this.field = field;
+    this.is_mine = false;
+    this.is_open = false;
+    this.is_flagged = false;
+    this.is_changed = false;
+    return this;
+}
+
+Cell.prototype = {
+    neighbors: function () {
+        var neighbors = [];
+        for ( var i = -1 ; i <= 1; i++ ) {
+            for ( var j = -1; j <= 1; j++ ) {
+                if ( !(i == 0 && j== 0 ) ) {
+                    var neighbor = this.field.cell(this.x + i, this.y + j);
+                    if ( neighbor )
+                        neighbors.push( neighbor );
+                }
+            }
+        }
+        return neighbors;
+    },
+    neighborMines: function () {
+        var mines = 0;
+        for ( var i = -1 ; i <= 1; i++ ) {
+            for ( var j = -1; j <= 1; j++ ) {
+                if ( !(i == 0 && j == 0 ) ) {
+                    var neighbor = this.field.cell(this.x + i, this.y + j);
+                    if ( neighbor && neighbor.is_mine )
+                        mines++;
+                }
+            }
+        }
+        return mines;
+    },
+    open: function () {
+        this.is_open = true;
+        if ( this.neighborMines() == 0) {
+            var thissig = this.x + ':' + this.y;
+            var explorered = { thissig: true };
+            var explorer_stack = [ this ];
+            while ( explorer_stack.length ) {
+                var cell = explorer_stack.shift();
+                var neighbors = cell.neighbors();
+                for ( var i = 0; i < neighbors.length; i++ ) {
+                    var neighbor = neighbors[i];
+                    if ( neighbor.is_open ) continue;
+                    neighbor.is_open = true;
+                    neighbor.is_changed = true;
+                    var sig = neighbor.x + ':' + neighbor.y;
+                    if ( !explorered[sig] && neighbor.neighborMines() == 0 ) {
+                        explorered[sig] = true;
+                        explorer_stack.push(neighbor);
+                    }
+                }
+            }
+        }
+    },
+    flag: function () {
+        this.is_flagged = true;
+    },
+    unflag: function () {
+        this.is_flagged = false;
+    }
+};
+
+function Field (options) {
+    var defaults = {
+        rows:  20,
+        cols:  20,
+        mines: 20
+    };
+    this.options = $.extend( {}, defaults, options );
+    this.init();
+}
+
+Field.prototype = {
+    cell: function (x, y) {
+        if ( this.cells[x] && this.cells[x][y] )
+            return this.cells[x][y];
+    },
+    each: function (fn) {
+        var cols = this.options.cols;
+        var rows = this.options.rows;
+        for ( var i = 0; i < cols; i++ ) {
+            for ( var j = 0; j < rows; j++ ) {
+                fn.apply( this.cell(i,j) );
+            }
+        }
+    },
+    init: function (options) {
+        this.cells = [];
+        var cols = this.options.cols;
+        var rows = this.options.rows;
+        for ( var i = 0; i < cols; i++ ) {
+            this.cells[i] = [];
+            for ( var j = 0; j < rows; j++ ) {
+                var cell = new Cell(i,j,this);
+                this.cells[i][j] = cell;
+            }
+        }
+        var mines = this.mines = this.options.mines;
+        for ( var i = 0; i < mines.length; i++ ) {
+            var mine = mines[i];
+            this.cell(mine[0], mine[1]).is_mine = true;
+        }
+    },
+    flags: function () {
+        var flags = 0;
+        this.each( function () { if ( this.is_flagged ) flags++ } );
+        return flags;
+    },
+    unflaggedMines: function () {
+        var mines = 0;
+        this.each( function () { if ( this.is_mine && !this.is_flagged ) mines++ } );
+        return mines;
+    },
+    unOpenedSafes: function () {
+        var safes = 0;
+        this.each( function () { if ( !this.is_mine && !this.is_open ) safes++ } );
+        return safes;
+    },
+    knowns: function () {
+        var knowns = 0;
+        this.each( function () { if ( ( this.is_open && this.is_mine ) || ( !this.is_open && this.is_flagged ) ) knowns++ } );
+        return knowns;
+    },
+};
+
+function Game () {
+    this.running = false;
+    this.cell_width = 16;
+    this.cell_height = 16;
+    this.init();
+}
+
+Game.prototype = {
+     init: function () {
+        var $cvs = $('#field');
+        var ctx = this.ctx = $cvs.get(0).getContext('2d');
+        var charColors = {
+            1: '#04f',
+            2: '#0a4',
+            3: '#f44',
+            4: '#a0a',
+            5: '#844',
+            6: '#f80',
+            7: '#f00',
+            8: '#400',
+            '*': '#000',
+            'x': '#000',
+            '!': '#f00',
+        };
+        var openCellColor = '#ddd';
+        var hiddenCellColor = '#88a';
+        var deadCellColor = '#f00';
+        var cellBorderColor = '#666';
+        this.imageData = {};
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        ctx.font = 'normal 900 ' + (this.cell_width - 1)+ 'px monospace';
+        for ( var i = 0; i < 9; i++ ) {
+            ctx.fillStyle = openCellColor;
+            ctx.fillRect  ( 0, 0, this.cell_width, this.cell_height );
+            ctx.strokeStyle = cellBorderColor;
+            ctx.strokeRect  ( 0, 0, this.cell_width + 1, this.cell_height + 1 );
+            if ( i ) {
+                ctx.fillStyle = charColors[i];
+                ctx.fillText( i, this.cell_width / 2, this.cell_height / 2 );
+            }
+            this.imageData[i] = ctx.getImageData(0, 0, this.cell_width, this.cell_height);
+        }
+        ctx.fillStyle = hiddenCellColor;
+        ctx.fillRect  ( 0, 0, this.cell_width, this.cell_height );
+        ctx.strokeStyle = cellBorderColor;
+        ctx.strokeRect  ( 0, 0, this.cell_width + 1, this.cell_height + 1 );
+        this.imageData['-'] = ctx.getImageData(0, 0, this.cell_width, this.cell_height);
+
+        ctx.fillStyle = deadCellColor;
+        ctx.fillRect  ( 0, 0, this.cell_width, this.cell_height );
+        ctx.strokeStyle = cellBorderColor;
+        ctx.strokeRect  ( 0, 0, this.cell_width + 1, this.cell_height + 1 );
+        ctx.fillStyle = charColors['x'];
+        ctx.fillText( '*', this.cell_width / 2, this.cell_height / 2 );
+        this.imageData['x'] = ctx.getImageData(0, 0, this.cell_width, this.cell_height);
+
+        ctx.fillStyle = hiddenCellColor;
+        ctx.fillRect  ( 0, 0, this.cell_width, this.cell_height );
+        ctx.strokeStyle = cellBorderColor;
+        ctx.strokeRect  ( 0, 0, this.cell_width + 1, this.cell_height + 1 );
+        ctx.fillStyle = charColors['!'];
+        ctx.fillText( '!', this.cell_width / 2, this.cell_height / 2 );
+        this.imageData['!'] = ctx.getImageData(0, 0, this.cell_width, this.cell_height);
+    },
+    render: function (options) {
+        var game = this;
+        $('#unknowns').text( game.f.mines.length - game.f.knowns() );
+        options = $.extend({}, options);
+        this.f.each( function () {
+            var cell = this;
+            if ( !options.full && !cell.is_changed ) return;
+            if ( cell.is_open && !cell.is_mine ) {
+                var n = cell.neighborMines();
+                game.ctx.putImageData( game.imageData[n], cell.x * game.cell_width, cell.y * game.cell_width );
+                return;
+            }
+            if ( cell.is_open && cell.is_mine ) {
+                game.ctx.putImageData( game.imageData['x'], cell.x * game.cell_width, cell.y * game.cell_width );
+                return;
+            }
+            if ( cell.is_flagged ) {
+                game.ctx.putImageData( game.imageData['!'], cell.x * game.cell_width, cell.y * game.cell_width );
+                return;
+            }
+            game.ctx.putImageData( game.imageData['-'], cell.x * game.cell_width, cell.y * game.cell_width );
+            return;
+        });
+    },
+    open: function (x,y) {
+        var cell = this.f.cell(x,y);
+        if ( cell.is_open ) return;
+        if ( cell.is_mine ) {
+            cell.is_changed = true;
+            cell.is_open = true;
+        }
+        else {
+            cell.is_changed = true;
+            cell.open();
+        }
+    },
+    flag: function (x,y) {
+        var cell = this.f.cell(x,y);
+        if ( !cell.is_flagged )
+            cell.is_changed = true;
+        cell.is_flagged = true;
+    },
+    unflag: function (x,y) {
+        var cell = this.f.cell(x,y);
+        if ( cell.is_flagged )
+            cell.is_changed = true;
+        cell.is_flagged = false;
+    },
+    click: function (ev) {
+        if ( !this.running ) return false;
+        this.f.each( function() { this.is_changed = false });
+        var x = Math.floor( ev.offsetX / this.cell_width );
+        var y = Math.floor( ev.offsetY / this.cell_height );
+        var cell = this.f.cell(x,y);
+        if ( cell.is_open) return false;
+        cell.is_changed = true;
+        var died = false;
+        if ( ( ev.ctrlKey && ev.shiftKey ) || ev.button > 2 ) {
+            this.bulkOpen(x,y);
+        }
+        else if ( ev.ctrlKey || ev.button == 2 ) {
+            cell.is_flagged = !cell.is_flagged;
+            if ( cell.is_flagged ) {
+                ws.sendObj( 'flag', { x: x, y: y } );
+            }
+            else {
+                ws.sendObj( 'unflag', { x: x, y: y } );
+            }
+        }
+        else {
+            if ( cell.is_mine ) died = true;
+            ws.sendObj( 'open', { x: x, y: y } );
+            this.open(x,y);
+        }
+        this.render();
+        if ( this.f.unflaggedMines() == 0 || this.f.unOpenedSafes() == 0 ) {
+            this.gameClear();
+        }
+        if ( died ) {
+            this.gameOver();
+        }
+        return false;
+    },
+    gameClear: function () {
+        this.running = 0;
+        alert('You win!');
+        ws.sendObj('newgame');
+    },
+    gameOver: function () {
+        var game = this;
+        ws.sendObj('dead');
+        this.running = 0;
+        $('#status').text('You Died!').addClass('dead');
+        setTimeout(function() {
+            game.running = 1;
+            $('#status').text('').removeClass('dead');
+        }, 3000);
+    },
+    newGame: function () {
+        var game = this;
+        ws.send('{"type": "game"}');
+    }
+};
+
+game = new Game;
+var handlers = {
+    game: function (data) {
+        $('#field').attr('width', data.cols * game.cell_width );
+        $('#field').attr('height', data.rows * game.cell_height );
+        game.f = new Field({
+            mines: data.mines,
+            cols: data.cols,
+            rows: data.rows,
+        });
+        var log = data.log;
+        for ( var i = 0; i < log.length; i++ ) {
+            var ev = log[i];
+            if ( ev.type == 'open' ) {
+                game.open(ev.data.x, ev.data.y);
+            }
+            else if ( ev.type == 'flag' ) {
+                game.flag(ev.data.x, ev.data.y);
+            }
+            else if ( ev.type == 'uflag' ) {
+                game.unflag(ev.data.x, ev.data.y);
+            }
+        }
+        game.render({ full: 1 });
+        game.running = 1;
+    },
+    open: function (data) {
+        game.open( data.x, data.y );
+        game.render();
+    },
+    flag: function (data) {
+        game.flag( data.x, data.y );
+        game.render();
+    },
+    unflag: function (data) {
+        game.unflag( data.x, data.y );
+        game.render();
+    },
+    bc: function (data) {
+        var $mb = $('#messages');
+        var msg = '<span class="nick">' + data.nick + '</span><span class="message">' + data.msg + '</span>';
+        $mb.append( $('<p class="msg-line" />').html(msg) );
+        $mb.scrollTop($mb.attr('scrollHeight'));
+    },
+    sbc: function (data) {
+        var $mb = $('#messages');
+        var msg = '<span class="sys-message">' + data.msg + '</span>';
+        $mb.append( $('<p class="msg-line sys-msg-line" />').html(msg) );
+        $mb.scrollTop($mb.attr('scrollHeight'));
+    },
+    users: function (data) {
+        var $users = $('#users').empty();
+        $.each( data, function( idx, val ) {
+            $users.append( $('<li />').text(val) );
+        });
+    }
+};
+
+ws = new WebSocket( '<%= $url %>' );
+ws.onopen = function (e) {
+    game.newGame();
+}
+
+ws.onmessage = function (e) {
+    var data = $.parseJSON(e.data);
+    handlers[data.type](data.data);
+}
+
+ws.sendObj = function ( cmd, obj ) {
+    this.send( JSON.stringify({ type: cmd, data: obj }));
+}
+
+$('#field')
+    .mousedown( function (e) { return game.click(e); } )
+    .bind('contextmenu', function (e) {return false} );
+$('#chat').submit( function (e) {
+    var msg = $('#message-box').val();
+    if ( msg ) {
+        ws.sendObj('bc', { msg: msg });
+    }
+    $('#message-box').val('');
+    return false;
+});
+
+
+});
+
+</script>
+<style type="text/css">
+#wrapper {
+    position: absolute;
+}
+
+#header {
+    position: fixed;
+    z-index: 10000;
+    width: 100%;
+    height: 30px;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    color: #fff;
+    background-color: #000;
+}
+
+#header div {
+    display: inline-block;
+}
+
+#status.dead {
+    background-color: #f00;
+}
+
+#sidebar {
+    position: fixed;
+    z-index: 9999;
+    width: 180px;
+    height: 100%;
+    left: 0;
+    top: 30px;
+    overflow: hidden;
+    background-color: #345;
+}
+
+#field-wrapper {
+    position: absolute;
+    left: 180px;
+    top: 30px;
+    padding: 5px;
+}
+
+#field {
+    margin: 0;
+    padding: 0;
+}
+
+#message-box {
+    width: 160px;
+    margin: 1px;
+    background-color: #fff;
+}
+
+#messages {
+    width: 180px;
+    height: 200px;
+    margin: 1px;
+    background-color: #fff;
+    overflow: scroll;
+}
+
+.msg-line {
+    margin: 4px 0 0 0;
+    line-height: 14px;
+    border-top: 1px solid #ddd;
+}
+
+.msg-line.sys-msg-line {
+    width: 100%;
+}
+
+.nick {
+    color: #789;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.message {
+    color: #567;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+.sys-message {
+    display: block;
+    color: #842;
+    font-size: 13px;
+    margin: 0 auto;
+}
+
+#users {
+    list-style-type: none;
+    font-size: 12px;
+    color: #fff;
+    padding: 3px 0 0 3px;
+    min-height: 100px;
+}
+
+</style>
+</head>
+<body>
+<div id="wrapper">
+<div id="header">
+    <div id="gameinfo"><span id="unknowns"></span></div>
+    <div id="status"></div>
+</div>
+<div id="sidebar">
+    <ul id="users"></ul>
+    <div id="messages"></div>
+    <form id="chat">
+      <input type="text" id="message-box" />
+      <input id="say" type="submit" />
+    </form>
+</div>
+<div id="field-wrapper">
+    <canvas id="field" width="400" height="400"></canvas>
+</div>
+</div>
+</body>
+</html>
