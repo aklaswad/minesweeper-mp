@@ -315,7 +315,7 @@ Game.prototype = {
             this.open(x,y);
         }
         this.render();
-        if ( this.f.unflaggedMines() == 0 || this.f.unOpenedSafes() == 0 ) {
+        if ( this.f.unOpenedSafes() == 0 ) {
             this.gameClear();
         }
         if ( died ) {
@@ -551,7 +551,7 @@ $('#chat').submit( function (e) {
 }
 
 #field-wrapper {
-    position: fixed;
+    position: absolute;
     left: 220px;
     top: 0px;
     padding: 5px;
