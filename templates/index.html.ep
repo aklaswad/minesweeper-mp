@@ -148,10 +148,11 @@ Field.prototype = {
     },
 };
 
-function Game () {
-    this.running = false;
-    this.cell_width = 16;
-    this.cell_height = 16;
+function Game (options) {
+    this.running     = false;
+    options = $.extend({}, options);
+    this.cell_width  = options.cell_width || 16;
+    this.cell_height = options.cell_height || 16;
     this.init();
 }
 
@@ -443,6 +444,13 @@ $('#chat').submit( function (e) {
     return false;
 });
 
+var eagle = false;
+$('#toggle-mode').click( function() {
+    eagle = !eagle;
+    game = new Game(eagle ? { cell_width: 6, cell_height: 6 } : undefined );
+    game.init();
+    game.newGame();
+});
 
 });
 
@@ -576,6 +584,7 @@ $('#chat').submit( function (e) {
       <input type="text" id="message-box" />
       <input id="say" type="submit" />
     </form>
+    <button id="toggle-mode">change view</button>
     <div id="credit"><a href="https://github.com/aklaswad/minesweeper-mp" target="_blank">minesweeper-mp by @aklaswad</a></div>
 </div>
 <div id="field-wrapper">
