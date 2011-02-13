@@ -8,10 +8,63 @@ use Mojolicious::Lite;
 my $clients = {};
 my $game;
 
+my %games = (
+    # 81 cells, 8.1 c/m
+    easy => {
+        cols  => 9,
+        rows  => 9,
+        mines => 10,
+    },
+    # 256 cells, 6.4 c/m
+    normal => {
+        cols  => 16,
+        rows  => 16,
+        mines => 40,
+    },
+    # 480 cells, 4.84 c/m
+    hard => {
+        cols  => 30,
+        rows  => 16,
+        mines => 99,
+    },
+    # 1000 cells, 3.9 c/m
+    veteran => {
+        cols  => 40,
+        rows  => 25,
+        mines => 256,
+    },
+    # 2400 cells, 3.08 c/m
+    mustdie => {
+        cols  => 60,
+        rows  => 40,
+        mines => 777,
+   },
+);
+
+my %game_map = (qw(
+    0 easy
+    1 easy
+    2 easy
+    3 normal
+    4 normal
+    5 hard
+    6 hard
+    7 hard
+    8 hard
+    9 veteran
+   10 veteran
+   11 veteran
+   12 veteran
+   13 veteran
+   14 veteran
+   15 veteran
+   16 veteran
+));
+
 sub new_game {
-    my $cols  = 60;
-    my $rows  = 32;
-    my $mines = 350;
+    my $usercount = scalar keys %$clients;
+    my $set = $games{ $game_map{$usercount} || 'mustdie' };
+    my ( $cols, $rows, $mines ) = @$set{qw( cols rows mines )};
     my @seed;
     my @mines;
     for my $i ( 0 .. $cols - 1 ) {
