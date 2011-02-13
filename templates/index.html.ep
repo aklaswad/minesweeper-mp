@@ -288,12 +288,17 @@ Game.prototype = {
         var died = false;
         if ( action == 'bulkopen' ) {
             var neighbors = cell.neighbors();
-            for ( var i=0; i < neighbors.length; i++ ) {
-                var neighbor = neighbors[i];
-                if ( neighbor.is_open ) continue;
-                if ( neighbor.is_mine && !neighbor.is_flagged ) {
-                    died = true;
-                    break;
+            if ( cell.is_mine ) {
+                died = 1;
+            }
+            else {
+                for ( var i=0; i < neighbors.length; i++ ) {
+                    var neighbor = neighbors[i];
+                    if ( neighbor.is_open ) continue;
+                    if ( neighbor.is_mine && !neighbor.is_flagged ) {
+                        died = true;
+                        break;
+                    }
                 }
             }
             if ( !died ) {
