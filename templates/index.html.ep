@@ -332,15 +332,23 @@ Game.prototype = {
         var game = this;
         ws.sendObj('dead');
         this.running = 0;
-        $('#status').text('You Died!').addClass('dead');
+        game.status('You Died!', 'dead');
         setTimeout(function() {
             game.running = 1;
-            $('#status').text('').removeClass('dead');
+            game.status();
         }, 3000);
     },
     newGame: function () {
         var game = this;
         ws.send('{"type": "game"}');
+    },
+    status: function (msg, cls) {
+        if ( msg ) {
+            $('#header').removeClass().addClass(cls).show().text(msg);
+        }
+        else {
+            $('#header').hide();
+        }
     }
 };
 
@@ -440,6 +448,7 @@ $('#chat').submit( function (e) {
 
 </script>
 <style type="text/css">
+
 #wrapper {
     position: absolute;
 }
@@ -448,53 +457,51 @@ $('#chat').submit( function (e) {
     position: fixed;
     z-index: 10000;
     width: 100%;
-    height: 30px;
+    height: 100%;
     left: 0;
     top: 0;
     overflow: hidden;
     color: #fff;
     background-color: #000;
+    text-align: center;
+    vertical-align: middle;
+    display: none;
 }
 
-#header div {
-    display: inline-block;
-}
-
-#status.dead {
-    background-color: #f00;
+#header.dead {
+    background-color: #900;
+    color: #000;
+    font-size: 120px;
+    font-weight: bold;
+    opacity: 0.5;
 }
 
 #sidebar {
     position: fixed;
     z-index: 9999;
-    width: 180px;
+    width: 220px;
     height: 100%;
     left: 0;
-    top: 30px;
+    top: 0;
     overflow: hidden;
     background-color: #345;
 }
 
-#field-wrapper {
-    position: absolute;
-    left: 180px;
-    top: 30px;
-    padding: 5px;
-}
-
-#field {
-    margin: 0;
-    padding: 0;
+#gameinfo {
+    color: #fff;
+    background-color: #000;
+    font-size: 50px;
+    text-align: center;
 }
 
 #message-box {
-    width: 160px;
+    width: 80%;
     margin: 1px;
     background-color: #fff;
 }
 
 #messages {
-    width: 180px;
+    width: 100%;
     height: 200px;
     margin: 1px;
     background-color: #fff;
@@ -538,21 +545,38 @@ $('#chat').submit( function (e) {
     min-height: 100px;
 }
 
+#credit a {
+    font-size: 8px;
+    color: #fff;
+}
+
+#field-wrapper {
+    position: fixed;
+    left: 220px;
+    top: 0px;
+    padding: 5px;
+}
+
+#field {
+    margin: 0;
+    padding: 0;
+}
+
 </style>
 </head>
 <body>
 <div id="wrapper">
 <div id="header">
-    <div id="gameinfo"><span id="unknowns"></span></div>
-    <div id="status"></div>
 </div>
 <div id="sidebar">
+    <div id="gameinfo"><span id="unknowns"></span></div>
     <ul id="users"></ul>
     <div id="messages"></div>
     <form id="chat">
       <input type="text" id="message-box" />
       <input id="say" type="submit" />
     </form>
+    <div id="credit"><a href="https://github.com/aklaswad/minesweeper-mp" target="_blank">minesweeper-mp by @aklaswad</a></div>
 </div>
 <div id="field-wrapper">
     <canvas id="field" width="400" height="400"></canvas>
