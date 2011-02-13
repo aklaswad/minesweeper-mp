@@ -350,10 +350,10 @@ Game.prototype = {
     },
     status: function (msg, cls) {
         if ( msg ) {
-            $('#header').removeClass().addClass(cls).show().text(msg);
+            $('#overlay').removeClass().addClass(cls).show().text(msg);
         }
         else {
-            $('#header').hide();
+            $('#overlay').hide();
         }
     }
 };
@@ -442,8 +442,8 @@ $(window).unload( function () {
 });
 
 $('#field')
-    .mousedown( function (e) { return game.click(e); } )
-    .bind('contextmenu', function (e) {return false} );
+    .mousedown( function (e) { return game.click(e); } );
+
 $('#chat').submit( function (e) {
     var msg = $('#message-box').val();
     if ( msg ) {
@@ -452,6 +452,9 @@ $('#chat').submit( function (e) {
     $('#message-box').val('');
     return false;
 });
+
+$('#field, #overlay').bind('contextmenu', function (e) {return false} );
+
 
 var eagle = false;
 $('#toggle-mode').click( function() {
@@ -470,7 +473,7 @@ $('#toggle-mode').click( function() {
     position: absolute;
 }
 
-#header {
+#overlay {
     position: fixed;
     z-index: 10000;
     width: 100%;
@@ -485,7 +488,7 @@ $('#toggle-mode').click( function() {
     display: none;
 }
 
-#header.dead {
+#overlay.dead {
     background-color: #900;
     color: #000;
     font-size: 120px;
@@ -583,8 +586,7 @@ $('#toggle-mode').click( function() {
 </head>
 <body>
 <div id="wrapper">
-<div id="header">
-</div>
+<div id="overlay"></div>
 <div id="sidebar">
     <div id="gameinfo"><span id="unknowns"></span></div>
     <ul id="users"></ul>
