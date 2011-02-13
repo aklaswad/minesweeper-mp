@@ -111,8 +111,8 @@ websocket '/' => sub {
     $self->on_finish(sub {
         # Remove client
         delete $clients->{$cid};
+        broadcast_userlist();
     });
-    broadcast_userlist();
 };
 
 get '/' => 'index';

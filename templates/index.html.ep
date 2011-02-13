@@ -437,6 +437,10 @@ ws.sendObj = function ( cmd, obj ) {
     this.send( JSON.stringify({ type: cmd, data: obj }));
 }
 
+$(window).unload( function () {
+    ws.close();
+});
+
 $('#field')
     .mousedown( function (e) { return game.click(e); } )
     .bind('contextmenu', function (e) {return false} );
