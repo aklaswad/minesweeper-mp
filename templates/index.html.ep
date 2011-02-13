@@ -331,21 +331,23 @@ Game.prototype = {
     },
     gameClear: function () {
         this.running = 0;
-        alert('You win!');
-        ws.sendObj('newgame');
+        game.status('COMPLETED!', 'win');
+        setTimeout(function() {
+            game.running = 1;
+            ws.sendObj('newgame');
+        }, 3000);
     },
     gameOver: function () {
         var game = this;
         ws.sendObj('dead');
         this.running = 0;
-        game.status('You Died!', 'dead');
+        game.status('YOU DIED!', 'dead');
         setTimeout(function() {
             game.running = 1;
             game.status();
         }, 3000);
     },
     newGame: function () {
-        var game = this;
         ws.send('{"type": "game"}');
     },
     status: function (msg, cls) {
@@ -386,14 +388,23 @@ var handlers = {
         }
         game.render({ full: 1 });
         game.running = 1;
+        game.status();
     },
     open: function (data) {
         game.open( data.x, data.y );
         game.render();
+        if ( game.f.unOpenedSafes() == 0 ) {
+            this.running = 0;
+            game.status('COMPLETED!', 'win');
+        }
     },
     bulkopen: function (data) {
         game.bulkopen( data.x, data.y );
         game.render();
+        if ( game.f.unOpenedSafes() == 0 ) {
+            this.running = 0;
+            game.status('COMPLETED!', 'win');
+        }
     },
     flag: function (data) {
         game.flag( data.x, data.y );
@@ -416,7 +427,9 @@ var handlers = {
         $mb.scrollTop($mb.attr('scrollHeight'));
     },
     users: function (data) {
-        var $users = $('#users').empty();
+        var $header = $('#users-header').empty();
+        var $users  = $('#users').empty();
+        $header.append( $('<h3 />').text( 'Players ( ' + data.length + ' )' ) );
         $.each( data, function( idx, val ) {
             $users.append( $('<li />').text(val) );
         });
@@ -469,6 +482,11 @@ $('#toggle-mode').click( function() {
 </script>
 <style type="text/css">
 
+body, ul, li, h1, h2, h3, div, a {
+    padding: 0;
+    margin: 0;
+}
+
 #wrapper {
     position: absolute;
 }
@@ -491,8 +509,16 @@ $('#toggle-mode').click( function() {
 #overlay.dead {
     background-color: #900;
     color: #000;
-    font-size: 120px;
-    font-weight: bold;
+    font-size: 220px;
+    font-weight: 900;
+    opacity: 0.5;
+}
+
+#overlay.win {
+    background-color: #009;
+    color: #fff;
+    font-size: 180px;
+    font-weight: 900;
     opacity: 0.5;
 }
 
@@ -505,6 +531,26 @@ $('#toggle-mode').click( function() {
     top: 0;
     overflow: hidden;
     background-color: #345;
+}
+
+.widget {
+    margin: 5px;
+    border: 1px solid #cde;
+    background-color: #ddd;
+}
+
+.widget-header {
+    background-color: #123;
+}
+
+.widget-header h3 {
+    color: #ccc;
+    margin: 0 3px;
+}
+
+.widget-content {
+    background-color: #ddd;
+    color: #444;
 }
 
 #gameinfo {
@@ -560,9 +606,16 @@ $('#toggle-mode').click( function() {
 #users {
     list-style-type: none;
     font-size: 12px;
-    color: #fff;
     padding: 3px 0 0 3px;
-    min-height: 100px;
+    height: 100px;
+    overflow: scroll
+}
+
+#users li {
+    display: inline-block;
+    margin: 2px;
+    padding: 2px;
+    background-color: #aab;
 }
 
 #credit a {
@@ -589,12 +642,21 @@ $('#toggle-mode').click( function() {
 <div id="overlay"></div>
 <div id="sidebar">
     <div id="gameinfo"><span id="unknowns"></span></div>
-    <ul id="users"></ul>
-    <div id="messages"></div>
-    <form id="chat">
-      <input type="text" id="message-box" />
-      <input id="say" type="submit" />
-    </form>
+    <div id="users-widget" class="widget">
+        <div id="users-header" class="widget-header"></div>
+        <div id="users-content" class="widget-content"><ul id="users"></ul></div>
+    </div>
+    <div id="chat-widget" class="widget">
+        <div id="chat-header" class="widget-header"><h3>Chat</h3></div>
+        <div id="chat-content" class="widget-content">
+            <div id="messages">
+            </div>
+            <form id="chat">
+              <input type="text" id="message-box" />
+              <input id="say" type="submit" />
+            </form>
+        </div>
+    </div>
     <button id="toggle-mode">change view</button>
     <div id="credit"><a href="https://github.com/aklaswad/minesweeper-mp" target="_blank">minesweeper-mp by @aklaswad</a></div>
 </div>
