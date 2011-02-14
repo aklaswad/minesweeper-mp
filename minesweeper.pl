@@ -107,6 +107,21 @@ websocket '/' => sub {
                 broadcast( sbc => { msg => "$old is now knonw as $value" });
                 broadcast_userlist();
             }
+            elsif ( $special =~ /^g[ia]veup$/i ) {
+                broadcast(
+                    sbc => {
+                        msg => $user->{nickname}
+                            . " has voted to skip this game"
+                    }
+                );
+                $user->{gaveup} = 1;
+                my @giveups = grep { $_->{gaveup} } values %$clients;
+                if ( scalar @giveups > ( ( scalar keys %$clients ) / 2 ) ) {
+                    $_->{gaveup} = 0 for values %$clients;
+                    $game = new_game();
+                    broadcast( game => $game );
+                }
+            }
         }
     });
 
