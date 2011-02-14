@@ -46,7 +46,7 @@ sub broadcast {
 }
 
 sub broadcast_userlist {
-    my @users = map { $_->{nickname} } values %$clients;
+    my @users = sort map { $_->{nickname} } values %$clients;
     broadcast( users => \@users );
 }
 
